@@ -16,7 +16,7 @@ args = parser.parse_args()
 
 
 # TODO get this as an argument
-clang.cindex.Config.set_library_path('/usr/lib/x86_64-linux-gnu/')
+clang.cindex.Config.set_library_path('D:/DevLib/LLVM64/bin')
 index = clang.cindex.Index.create()
 
 
@@ -26,7 +26,7 @@ free_functions = {}
 
 # TODO get rid of
 class Method:
-    def __init__(self,name):
+    def __init__(self, name):
         self.name = name
         self.overloaded = False
         self.signatures = []
@@ -158,6 +158,21 @@ def filter_node_list_by_classes(
                 else:
                     function.overloaded = True
                     free_functions[function.name] = function
+        elif i.kind == clang.cindex.CursorKind.NAMESPACE:
+            for child in i.get_children():
+                if child.spelling.startswith("operator"):
+                    continue
+                print("Speeling is {}, kind is {}".format(child.spelling, child.kind))
+                function = Method(child.spelling)
+                signature = child.type.get_result().spelling + child.displayname[child.displayname.find('('):child.displayname.find(')')+1]
+
+                overload_check = free_functions.get(function.name)
+                if overload_check:
+                    overload_check.overloaded = True
+                    overload_check.signatures.append(signature)
+                else:
+                    function.signatures.append(signature)
+                    free_functions[function.name] = function
         else:
             pass
 
@@ -167,27 +182,23 @@ translation_unit = index.parse(args.file, args=['-std=c++17',"-I"+args.includes]
 filter_node_list_by_classes(translation_unit.cursor.get_children())
 
 # write global header
-with open(args.folder+"Bind_"+args.library_name+".h", 'w') as f:
+with open("LuaBinding_"+args.library_name+".h", 'w') as f:
     f.write((Template(filename="templates/global_header_template.txt").render(library_name=args.library_name, entries=global_registry)))
 
 # write global binder with free functions
-with open(args.folder+"Bind_"+args.library_name+".cpp", 'w') as f:
-    f.write("#include <" + "Bind_" + args.library_name + ".h>\n\n")
-    f.write((Template(filename="templates/global_cpp_template.txt").render(library_name=args.library_name, entries=global_registry)))
-    f.write((Template(filename="templates/free_functions_template.txt").render(library_name=args.library_name,functions=free_functions)))
-
-# write bindings in a separate files ( for parallel compilation )
-for key,value in registries.items():
-    with open(args.folder + "Bind_" + key + ".cpp", 'w') as f:
-        f.write("#include <" + "Bind_"+args.library_name+".h>\n\n")
+with open("LuaBinding_"+args.library_name+".cpp", 'w') as f:
+    f.write("#include <" + "LuaBinding_" + args.library_name + ".h>\n\n")
+    # write bindings in a separate files ( for parallel compilation )
+    for key, value in registries.items():
         f.write("".join(value))
+    f.write((Template(filename="templates/free_functions_template.txt").render(library_name=args.library_name,functions=free_functions)))
+    f.write((Template(filename="templates/global_cpp_template.txt").render(library_name=args.library_name, entries=global_registry)))
 
 # write a simple CMakeLists.txt to include the library
-with open(args.folder+"bind_"+args.library_name+".cmake",'w') as f:
+with open("bind_"+args.library_name+".cmake",'w') as f:
     f.write("SET(BIND_"+args.library_name+"_SOURCES \n")
-    f.write("Bind_" + args.library_name + ".h\n")
-    f.write("Bind_" + args.library_name + ".cpp\n")
+    f.write("LuaBinding_" + args.library_name + ".h\n")
+    f.write("LuaBinding_" + args.library_name + ".cpp\n")
     for key in registries.keys():
-        f.write("Bind_" + key + ".cpp\n")
+        f.write("LuaBinding_" + key + ".cpp\n")
     f.write(")")
-

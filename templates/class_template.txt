@@ -1,3 +1,4 @@
+
 void register_type_${name}(sol::state& state)
 {
 	% for meta in metas:
@@ -23,29 +24,28 @@ void register_type_${name}(sol::state& state)
 		);
 	% endfor
 	state.new_usertype<${name}>("${name}"
-	// fields
+		// fields
 	% for field in fields:
-		,"${field}"
-		,&${name}::${field}
+		,"${field}", &${name}::${field}
 	% endfor
-	// methods
+		// methods
 	% for method in methods.values():
-		% if method.overloaded:
-			,"${method.name}"
-			,sol::overload(
-			% for signature in method.signatures:
-				sol::resolve<${signature}>(&${name}::${method.name})
-				% if signature is not method.signatures[-1]:
-				,
-				% endif 
-			% endfor
-			)
-		% else:
-			,"${method.name}"
-			,&${name}::${method.name}
-		% endif
+	% if method.overloaded:
+		,"${method.name}"
+		,sol::overload(
+		% for signature in method.signatures:
+			sol::resolve<${signature}>(&${name}::${method.name})
+			% if signature is not method.signatures[-1]:
+			,
+			% endif 
+		% endfor
+		)
+	% else:
+		,"${method.name}"
+		,&${name}::${method.name}
+	% endif
 	% endfor
-	// constructors
+		// constructors
 	% if constructors:
 		,sol::call_constructor
 		,sol::constructors<
@@ -58,7 +58,7 @@ void register_type_${name}(sol::state& state)
 		>()
     % endif
     % if metas:
-    // metas
+    	// metas
 		% for meta in metas:
 			,sol::meta_function::${meta[1]}
 			,${name}_${meta[1]}_overloads

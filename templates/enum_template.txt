@@ -1,9 +1,9 @@
+
 void register_enum_${name}(sol::state& state)
 {
 	state.new_enum("${name}"
 	% for item in values:
-		,"${item}"
-		,${name}::${item}
+		,"${item}", ${name}::${item}
 	% endfor
 	);
 }
