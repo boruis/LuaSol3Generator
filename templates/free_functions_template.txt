@@ -7,15 +7,15 @@ void register_${library_name}_free_functions(sol::state& state)
 			state.set_function("${function.name}",sol::overload(
 			% for signature in function.signatures:
 				% if signature is not function.signatures[-1]:
-				sol::resolve<${signature}>(&${function.name}),
+				sol::resolve<${signature}>(&${function.ns}${function.name}),
 				% else:
-				sol::resolve<${signature}>(&${function.name})
+				sol::resolve<${signature}>(&${function.ns}${function.name})
 				% endif
 			% endfor
 			));
 		% endif
 		% else:
-			state.set_function("${function.name}",&${function.name});
+			state.set_function("${function.name}",&${function.ns}${function.name});
 		% endif
 	% endfor
 }

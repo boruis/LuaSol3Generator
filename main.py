@@ -23,6 +23,11 @@ index = clang.cindex.Index.create()
 global_registry = []
 registries = {}
 free_functions = {}
+free_functions_ignore = {
+    "ColorConvertRGBtoHSV" : 1,
+    "ColorConvertHSVtoRGB" : 1,
+    "GetDrawListSharedData" : 1
+}
 
 # TODO get rid of
 class Method:
@@ -30,11 +35,10 @@ class Method:
         self.name = name
         self.overloaded = False
         self.signatures = []
+        self.ns = ""
 
 
-def filter_node_list_by_classes(
-    nodes: typing.Iterable[clang.cindex.Cursor]
-) -> typing.Iterable[clang.cindex.Cursor]:
+def filter_node_list_by_classes(nodes: typing.Iterable[clang.cindex.Cursor]) -> typing.Iterable[clang.cindex.Cursor]:
     global global_registry
     global free_functions
 
@@ -69,7 +73,11 @@ def filter_node_list_by_classes(
                                 continue
 
                         if child.access_specifier == clang.cindex.AccessSpecifier.PUBLIC:
-                            usertype_fields.append(child.displayname)
+                            # ignore private var, and const array
+                            isPrivateVar = child.spelling.startswith("_")
+                            isPtrPtrVar = child.type.spelling.endswith("**")
+                            if clang.cindex.TypeKind.CONSTANTARRAY != child.type.kind and isPrivateVar == False and isPtrPtrVar == False:
+                                usertype_fields.append(child.displayname)
                     elif child.kind == clang.cindex.CursorKind.CXX_BASE_SPECIFIER:
                         usertype_parents.append(child.type.spelling)
                     elif child.kind == clang.cindex.CursorKind.CXX_METHOD:
@@ -101,13 +109,14 @@ def filter_node_list_by_classes(
                         if child.is_const_method():
                             signature += "const"
 
-                        overload_check = usertype_methods.get(method.name)
-                        if usertype_methods.get(method.name):
-                            overload_check.overloaded = True
-                            overload_check.signatures.append(signature)
-                        else:
-                            method.signatures.append(signature)
-                            usertype_methods[method.name] = method
+                        if child.displayname.find("...") < 0 and 'void **' != child.type.get_result().spelling:
+                            overload_check = usertype_methods.get(method.name)
+                            if usertype_methods.get(method.name):
+                                overload_check.overloaded = True
+                                overload_check.signatures.append(signature)
+                            else:
+                                method.signatures.append(signature)
+                                usertype_methods[method.name] = method
 
                     elif child.kind == clang.cindex.CursorKind.CONSTRUCTOR:
                         signature = child.displayname[child.displayname.find('('):child.displayname.find(')') + 1]
@@ -164,9 +173,13 @@ def filter_node_list_by_classes(
                     continue
                 print("Speeling is {}, kind is {}".format(child.spelling, child.kind))
                 function = Method(child.spelling)
-                signature = child.type.get_result().spelling + child.displayname[child.displayname.find('('):child.displayname.find(')')+1]
-
+                function.ns = i.spelling + "::"
+                signature = child.type.get_result().spelling + child.displayname[child.displayname.find('('):child.displayname.rfind(')')+1]
                 overload_check = free_functions.get(function.name)
+                ignore_check = free_functions_ignore.get(function.name)
+                if ignore_check:
+                    continue
+                    
                 if overload_check:
                     overload_check.overloaded = True
                     overload_check.signatures.append(signature)
@@ -187,7 +200,8 @@ with open("LuaBinding_"+args.library_name+".h", 'w') as f:
 
 # write global binder with free functions
 with open("LuaBinding_"+args.library_name+".cpp", 'w') as f:
-    f.write("#include <" + "LuaBinding_" + args.library_name + ".h>\n\n")
+    f.write("#include \"" + "LuaBinding_" + args.library_name + ".h\"\n\n")
+    f.write("#include \"imgui.h\"\n\n")
     # write bindings in a separate files ( for parallel compilation )
     for key, value in registries.items():
         f.write("".join(value))

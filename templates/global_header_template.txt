@@ -1,7 +1,6 @@
 #ifndef BINDER_${library_name}_H
 #define BINDER_${library_name}_H
 
-#include <Box2D/Box2D.h>
 #include <sol/sol.hpp>
     
 % for item in entries:
